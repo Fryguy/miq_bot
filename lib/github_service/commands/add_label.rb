@@ -4,7 +4,7 @@ module GithubService
       include IsTeamMember
 
       def unassignable_labels
-        @unassignable_labels ||= Settings.labels.unassignable.to_h.stringify_keys
+        @unassignable_labels ||= Array(Settings.labels.unassignable)
       end
 
       private
@@ -57,8 +57,23 @@ module GithubService
 
       def handle_unassignable_labels(valid_labels)
         valid_labels.map! do |label|
-          unassignable_labels.key?(label) ? unassignable_labels[label] : label
+          replacement = find_unassignable_replacement(label)
+          replacement || label
         end
+      end
+
+      def find_unassignable_replacement(label)
+        unassignable_labels.each do |rule|
+          pattern = rule["pattern"]
+          replacement = rule["replacement"]
+
+          if pattern.kind_of?(Regexp)
+            return label.sub(pattern, replacement) if label.match?(pattern)
+          elsif pattern.to_s == label
+            return replacement
+          end
+        end
+        nil
       end
 
       def invalid_label_message(issuer, invalid_labels)
